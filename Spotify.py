@@ -4,6 +4,11 @@ import spotipy
 import spotipy.util as util
 
 from SpotifyBase import SpotifyBase
+from Exceptions.success import SpotifySuccess as success_msg
+from Exceptions.failed import SpotifyFailed as failed_msg
+from Exceptions.info import SpotifyInfo as info_msg
+
+from decorators import get_tracks
 
 
 class Spotify(SpotifyBase):
@@ -24,16 +29,31 @@ class Spotify(SpotifyBase):
         """
             to authenticate user
         """
-        token = util.prompt_for_user_token(username=self.username,
-                                           scope=self.scope,
-                                           client_id=self.client_id,
-                                           client_secret=self.client_secret,
-                                           redirect_uri=self.redirect_url)
+        try:
+            token = util.prompt_for_user_token(username=self.username,
+                                               scope=self.scope,
+                                               client_id=self.client_id,
+                                               client_secret=self.client_secret,
+                                               redirect_uri=self.redirect_url)
+        except spotipy.oauth2.SpotifyOauthError as e:
+            token = None
+            print(failed_msg('Something wrong with your Spotify Web. '
+                             'Try to use another browser or set your browser to use protected content.'))
 
         if token:
             self.sp = spotipy.Spotify(auth=token)
+            print(success_msg('Authentication was successful'))
         else:
-            pass
+            print(failed_msg('Authentication was failed. \n Check if all you input data was correct.'))
+
+    @get_tracks
+    def get_tracks(self):
+        """
+            :return:
+            list of the tracks objects
+        """
+        tracks = self.sp.current_user_saved_tracks()
+        return tracks
 
     def get_playlists(self):
         """
@@ -45,9 +65,10 @@ class Spotify(SpotifyBase):
         playlists = self.sp.current_user_playlists(limit=50)
 
         if playlists:
+            print(info_msg('get your playlists'))
             return playlists
         else:
-            return None
+            print(info_msg('You have no playlists'))
 
     def find_playlist(self, name):
         """
@@ -68,9 +89,10 @@ class Spotify(SpotifyBase):
                 break
 
         if pl:
+            print(info_msg('needed playlist was found'))
             return pl
         else:
-            pass
+            print(failed_msg('there is no playlist you wrote'))
 
     def add_tracks_to_playlist(self, pl_name, tracks):
         """
@@ -90,11 +112,15 @@ class Spotify(SpotifyBase):
         pl_id = self.find_playlist(pl_name)['id']
 
         if pl_id and track_id:
-            # result = self.sp.user_playlist_add_tracks(self.username, pl_id, track_id)
-            result = self.sp.current_user_saved_tracks_add(track_id)
-            print(result)
+            try:
+                result = self.sp.user_playlist_add_tracks(self.username, pl_id, track_id)
+                # result = self.sp.current_user_saved_tracks_add(track_id)
+                print(success_msg('The songs was added successfully'))
+            except spotipy.client.SpotifyException as e:
+                print(failed_msg('The songs were not added. \n {}'.format(e)))
+
         else:
-            print('Somthing is wrong: \n playlist_id: {} \n track_id: [}'.format(pl_id, track_id))
+            print(failed_msg('Something is wrong: \n playlist_id: {} \n track_id: [}'.format(pl_id, track_id)))
 
     @staticmethod
     def _rm_cache():
